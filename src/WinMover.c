@@ -47,9 +47,6 @@ static const char* const MSG_ERR_SYS =
 /* taille maximale d'un message affiché par ce programme */
 static const unsigned TAILLE_MAX_MSG = 4096U;
 
-/* classe de fenêtre à rechercher */
-static const WCHAR* const CLASSE_FEN_EXPLOR = L"CabinetWClass" ;
-
 /* coordonnées à donner à la fenêtre indiquée */
 static const RECT coords_fen = {
 		.left = 41L,
@@ -57,6 +54,10 @@ static const RECT coords_fen = {
 		.bottom = 687L,
 		.right = 1287L
 };
+
+
+/* classe de fenêtre à rechercher */
+static const WCHAR* const CLASSE_FEN_EXPLOR = L"CabinetWClass" ;
 
 
 /*========================================================================*/
@@ -74,7 +75,7 @@ static unsigned int nbFenRedim ;
 /* === FONCTIONS UTILITAIRES "PRIVEES" === */
 
 /* met en forme et affiche un message d'erreur du système NT
- * sur la sortie console d'erreur standard */
+   sur la sortie console d'erreur standard */
 static DWORD
 MsgErreurSys (const char* nomFnct)
 {
@@ -86,7 +87,7 @@ MsgErreurSys (const char* nomFnct)
 	/* essaie d'obtenir une description de l'erreur en question */
 	LPSTR ptrMsgSys;
 	DWORD res = FormatMessageA (FORMAT_MESSAGE_ALLOCATE_BUFFER
-	                            | FORMAT_MESSAGE_FROM_SYSTEM,
+	                             | FORMAT_MESSAGE_FROM_SYSTEM,
 	                            NULL,
 	                            codeErr,
 	                            MAKELANGID(LANG_SYSTEM_DEFAULT,
@@ -146,10 +147,12 @@ MainWindowEnumerated (HWND hWnd,
 
 	/* retrouve la classe de la fenêtre */
 	WCHAR strCls[TAILLE_MAX_MSG] ;
-	int len = GetClassNameW(hWnd, strCls, (int)TAILLE_MAX_MSG) ;
+	int len = GetClassNameW (hWnd,
+	                         strCls,
+	                         (int)TAILLE_MAX_MSG) ;
 
 	/* s'agit-il de la classe recherchée ? */
-	if (wcsncmp(strCls, CLASSE_FEN_EXPLOR, (size_t)len) == 0) {
+	if (wcsncmp (strCls, CLASSE_FEN_EXPLOR, (size_t)len) == 0) {
 		RedimFenetre (hWnd) ;
 		nbFenRedim++ ;
 	}
@@ -185,5 +188,4 @@ main (int argc,
 	fflush (stdout) ;
 	return 0 ;
 }
-
 
