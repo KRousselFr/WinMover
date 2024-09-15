@@ -10,6 +10,7 @@
 
 
 #include <assert.h>
+
 #include <stdio.h>
 
 #include <windows.h>
@@ -22,9 +23,9 @@
 /**
  * \def VERSION_PRG
  *
- * Version courante du programme WinMouse.
+ * Version courante du programme WinMover.
  */
-#define VERSION_PRG  "0.7.7 du 18/09/2023"
+#define VERSION_PRG  "1.0 du 15/09/2024"
 
 /**
  * \def TAILLE_MAX_MSG
@@ -32,6 +33,13 @@
  * Taille maximale d'un message affiché par ce programme.
  */
 #define TAILLE_MAX_MSG  4096U
+
+/**
+ * \def TAILLE_MAX_NOM
+ *
+ * Taille maximale d'un nom (de classe de fenêtre par exemple).
+ */
+#define TAILLE_MAX_NOM  256U
 
 
 /* == Messages affichés == */
@@ -51,18 +59,18 @@ static const char* const MSG_ERR_SYS =
 
 /* == Valeurs numériques == */
 
-/* coordonnées à donner à la fenêtre indiquée */
+/* coordonnées à donner par défaut aux fenêtres trouvées */
 static const RECT COORDS_FEN_DEFAUT = {
-		.left = 41L,
-		.top = 0L,
-		.bottom = 687L,
-		.right = 1287L
+		.left   = 41L,
+		.top    =  0L,
+		.bottom = -1L,
+		.right  = -1L
 };
 
 
 /* == Constantes chaînes de caractères à ne pas traduire ! == */
 
-/* classe de fenêtre à rechercher */
+/* classe de fenêtre à rechercher par défaut */
 static const WCHAR* const CLASSE_FEN_EXPLOR_DEFAUT = L"CabinetWClass" ;
 
 /* nom du fichier INI de configuration de ce programme */
@@ -88,7 +96,7 @@ static const WCHAR* const NOM_VAL_DROITE = L"Right" ;
 /*========================================================================*/
 
 /* classe de fenêtre à rechercher */
-static WCHAR classe_fenetre[TAILLE_MAX_MSG] ;
+static WCHAR classe_fenetre[TAILLE_MAX_NOM] ;
 /* coordonnées à donner aux fenêtres trouvées */
 static RECT coords_fen ;
 
@@ -113,7 +121,7 @@ MsgErreurSys (const char* nomFnct)
 	          MSG_ERR_FMT_ECHEC_FNCT,
 	          nomFnct, codeErr) ;
 	/* essaie d'obtenir une description de l'erreur en question */
-	LPSTR ptrMsgSys;
+	LPSTR ptrMsgSys ;
 	DWORD res = FormatMessageA (FORMAT_MESSAGE_ALLOCATE_BUFFER
 	                             | FORMAT_MESSAGE_FROM_SYSTEM,
 	                            NULL,
@@ -138,13 +146,25 @@ MsgErreurSys (const char* nomFnct)
 
 
 /* détermine les paramètres de fonctionnement du programme */
-static void
+static BOOL
 DetermineParams (void)
 {
+	/* coordonnées par défaut : retrouve la taille du bureau */
+	RECT taille_bureau ;
+	BOOL ok = SystemParametersInfoW(SPI_GETWORKAREA,
+	                                0,
+	                                &taille_bureau,
+	                                0) ;
+	if (!ok) {
+		MsgErreurSys ("SystemParametersInfo") ;
+		return FALSE ;
+	}
+
 	/* retrouve le chemin vers le fichier INI à lire */
 	WCHAR chemin_ini[MAX_PATH] ;
 	memset (chemin_ini, 0, MAX_PATH) ;
-	DWORD len = GetCurrentDirectoryW (MAX_PATH, chemin_ini) ;
+	DWORD len = GetCurrentDirectoryW (MAX_PATH,
+	                                  chemin_ini) ;
 	wcsncat (chemin_ini, L"\\", MAX_PATH - len - 1) ;
 	wcsncat (chemin_ini, NOM_FICHIER_CONFIG, MAX_PATH - len - 2) ;
 	/* retrouve le nom de la classe à rechercher */
@@ -152,7 +172,7 @@ DetermineParams (void)
 	                          NOM_VAL_CLASSE,
 	                          CLASSE_FEN_EXPLOR_DEFAUT,
 	                          classe_fenetre,
-	                          TAILLE_MAX_MSG,
+	                          TAILLE_MAX_NOM,
 	                          chemin_ini) ;
 	/* détermine les coordonnées à donner aux fenêtres trouvées :
 	   lit les valeurs voulues dans le fichier INI une à une,
@@ -160,19 +180,21 @@ DetermineParams (void)
 	coords_fen.left = (LONG) GetPrivateProfileIntW (NOM_SECTION_COORDS,
 	                                                NOM_VAL_GAUCHE,
 	                                                COORDS_FEN_DEFAUT.left,
-	                                                chemin_ini);
+	                                                chemin_ini) ;
 	coords_fen.top = (LONG) GetPrivateProfileIntW (NOM_SECTION_COORDS,
 	                                               NOM_VAL_HAUT,
 	                                               COORDS_FEN_DEFAUT.top,
-	                                               chemin_ini);
+	                                               chemin_ini) ;
 	coords_fen.bottom = (LONG) GetPrivateProfileIntW (NOM_SECTION_COORDS,
 	                                                  NOM_VAL_BAS,
-	                                                  COORDS_FEN_DEFAUT.bottom,
-	                                                  chemin_ini);
+	                                                  taille_bureau.bottom,
+	                                                  chemin_ini) ;
 	coords_fen.right = (LONG) GetPrivateProfileIntW (NOM_SECTION_COORDS,
 	                                                 NOM_VAL_DROITE,
-	                                                 COORDS_FEN_DEFAUT.right,
-	                                                 chemin_ini);
+	                                                 taille_bureau.right,
+	                                                 chemin_ini) ;
+
+	return TRUE ;
 }
 
 
@@ -213,10 +235,10 @@ MainWindowEnumerated (HWND hWnd,
 	(void)lParam ;
 
 	/* retrouve la classe de la fenêtre */
-	WCHAR strCls[TAILLE_MAX_MSG] ;
+	WCHAR strCls[TAILLE_MAX_NOM] ;
 	int len = GetClassNameW (hWnd,
 	                         strCls,
-	                         (int)TAILLE_MAX_MSG) ;
+	                         (int)TAILLE_MAX_NOM) ;
 
 	/* s'agit-il de la classe recherchée ? */
 	if (wcsncmp (strCls, classe_fenetre, (size_t)len) == 0) {
@@ -243,11 +265,14 @@ main (int argc,
 	fflush (stdout) ;
 
 	/* retrouve les valeurs à donner aux paramètres */
-	DetermineParams () ;
+	BOOL ok = DetermineParams () ;
+	if (!ok) {
+		return 1 ;
+	}
 
 	/* énumère les fenêtres principales affichées,
 	   pour trouver celles à traiter (selon leur classe) */
-	BOOL ok = EnumWindows (MainWindowEnumerated, 0L) ;
+	ok = EnumWindows (MainWindowEnumerated, 0L) ;
 	if (!ok) {
 		MsgErreurSys ("EnumWindows()") ;
 		return 1 ;
@@ -258,4 +283,7 @@ main (int argc,
 	fflush (stdout) ;
 	return 0 ;
 }
+
+
+/*-*/
 
